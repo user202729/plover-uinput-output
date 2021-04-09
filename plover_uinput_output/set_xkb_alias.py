@@ -208,6 +208,37 @@ def set_xkb_alias(key_name_to_uinput_keycode: Dict[str, str])->None:
 	asterisk 8
 	parenleft 9
 	parenright 0
+	asciitilde grave
+	audiopause playpause
+	bar backslash
+	braceleft leftbrace
+	braceright rightbrace
+	break pause
+	colon semicolon
+	eject stopcd
+	greater dot
+	iso_left_tab tab
+	kp_0 kp0
+	kp_1 kp1
+	kp_2 kp2
+	kp_3 kp3
+	kp_4 kp4
+	kp_5 kp5
+	kp_6 kp6
+	kp_7 kp7
+	kp_8 kp8
+	kp_9 kp9
+	kp_decimal kpdot
+	less comma
+	meta_l leftalt
+	meta_r rightalt
+	plus equal
+	question slash
+	quotedbl apostrophe
+	sys_req sysrq
+	underscore minus
+	xf86_audiopause playpause
+	xf86_eject stopcd
 	""".strip().splitlines() if a.strip()]:
 		if k not in key_name_to_uinput_keycode:
 			key_name_to_uinput_keycode[k]=key_name_to_uinput_keycode[v]

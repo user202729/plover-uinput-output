@@ -35,6 +35,7 @@ except PermissionError:
 while True:
 	data=read_message()
 	if not data: break
+	print("get instruction", data)
 	try:
 		device.emit(*json.loads(data))
 	except:

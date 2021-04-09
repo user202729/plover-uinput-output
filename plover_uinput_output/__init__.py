@@ -9,9 +9,18 @@ from pathlib import Path
 
 import uinput
 
+from plover.oslayer.keyboardcontrol import KeyboardEmulation as OldKeyboardEmulation
 from plover import log
 from plover.oslayer.config import CONFIG_DIR
-from plover.key_combo import KeyCombo, CHAR_TO_KEYNAME
+from plover.key_combo import CHAR_TO_KEYNAME
+try:
+	from plover.key_combo import parse_key_combo
+except ImportError:
+	log.warning('with KeyCombo new interface')
+	from plover.key_combo import KeyCombo
+	_key_combo = KeyCombo()
+	def parse_key_combo(combo_string: str):
+		return _key_combo.parse(combo_string)
 
 have_output_plugin = False
 try:
@@ -39,8 +48,8 @@ process=None
 
 def start()->None:
 	global process
-	assert not process
-
+	if process is not None:
+		return
 
 	#import inspect
 	#lines=inspect.getsource(run).splitlines()
@@ -64,19 +73,32 @@ def start()->None:
 class Main:
 	def __init__(self, engine: "plover.engine.StenoEngine")->None:
 		self._engine: "plover.engine.StenoEngine" = engine
+		self._old_keyboard_emulation=None
 
 	def start(self)->None:
 		"""Starts the server.
 
 		If the extension is enabled, this function is called when Plover starts.
 		"""
-		log.warning("==start?")
 		start()
+		if hasattr(self._engine, "_output"):
+			pass
+		else:
+			log.warning("Output plugin not properly supported!")
+			assert self._old_keyboard_emulation is None
+			self._old_keyboard_emulation = self._engine._keyboard_emulation
+			assert isinstance(self._old_keyboard_emulation, OldKeyboardEmulation)
+			self._engine._keyboard_emulation = KeyboardEmulation()
 
 	def stop(self)->None:
 		#send_message(process, b"")
 		#process.wait()
-		log.warning("stop?")
+		if hasattr(self._engine, "_output"):
+			log.warning("stop (while Plover has not quited) not supported -- uninstall the plugin instead")
+		else:
+			assert self._old_keyboard_emulation is not None
+			self._engine._keyboard_emulation = self._old_keyboard_emulation 
+			self._old_keyboard_emulation =None
 
 # https://www.kernel.org/doc/html/v4.12/input/uinput.html
 #
@@ -146,7 +168,7 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def __init__(self, params=None):
 		if have_output_plugin:
 			KeyboardEmulationBase.__init__(self, params)
-		self._key_combo = KeyCombo()
+		#self._key_combo = KeyCombo()
 
 	def start(self):
 		pass
@@ -194,7 +216,7 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 				self._send_key(key_name, 0)
 
 	def send_key_combination(self, combo_string: str)->None:
-		key_events = self._key_combo.parse(combo_string)
+		key_events = parse_key_combo(combo_string)
 		for key_name, pressed in key_events:
 			self._send_key(key_name, pressed)
 
