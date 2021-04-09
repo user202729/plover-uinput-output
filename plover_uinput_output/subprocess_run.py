@@ -1,7 +1,10 @@
 
 import sys
 import json
+import subprocess
 from typing import Any
+
+subprocess.run(('modprobe', 'uinput'), check=True)
 
 def read_message()->bytes:
 	message_size = int.from_bytes(sys.stdin.buffer.read(8), 'little') # 8 is definitely enough
@@ -32,4 +35,9 @@ except PermissionError:
 while True:
 	data=read_message()
 	if not data: break
-	device.emit(*json.loads(data))
+	try:
+		device.emit(*json.loads(data))
+	except:
+		import traceback
+		traceback.print_exc()
+		print(data)
