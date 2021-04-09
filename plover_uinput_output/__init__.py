@@ -1,11 +1,15 @@
-from typing import Dict, Tuple, TYPE_CHECKING, NamedTuple, Optional
+from typing import Dict, Tuple, TYPE_CHECKING, NamedTuple, Optional, Any
 import subprocess
 import sys
+import time
 import json
-from pathlib import Path
-from plover import log
 import argparse
 import shlex
+from pathlib import Path
+
+import uinput
+
+from plover import log
 from plover.oslayer.config import CONFIG_DIR
 from plover.key_combo import KeyCombo, CHAR_TO_KEYNAME
 
@@ -20,6 +24,44 @@ except ImportError:
 if TYPE_CHECKING:
 	import plover.engine
 
+def send_message(process: subprocess.Popen, message: bytes)->None:
+	# might raise BlockingIOError if the subprocess misbehave
+	# is this safe without a lock? TODO test
+	assert process.stdin is not None
+	process.stdin.write(len(message).to_bytes(8, "little"))
+	process.stdin.write(message)
+	process.stdin.flush()
+
+def send_json(process, data: Any)->None:
+	send_message(process, json.dumps(data).encode('u8'))
+
+process=None
+
+def start():
+	global process
+	assert not process
+
+
+	#import inspect
+	#lines=inspect.getsource(run).splitlines()
+	#assert lines[0].lstrip().startswith('def')
+	#indentation = len(lines[1])-len(lines[1].lstrip())
+	#code="\n".join(line[indentation:] for line in lines[1:])
+
+	print(__file__)
+	code=(Path(__file__).parent / 'subprocess_run.py').open('r').read()
+
+	process=subprocess.Popen(("sudo", sys.executable, "-c", code),
+			stdin=subprocess.PIPE,
+			#stdout=subprocess.DEVNULL,
+			#stderr=subprocess.DEVNULL,
+			)
+
+	uinput_import_path=bytes(Path(uinput.__file__).parent.parent)
+	assert uinput_import_path
+	send_message(process,uinput_import_path)
+
+
 class Main:
 	def __init__(self, engine: "plover.engine.StenoEngine")->None:
 		self._engine: "plover.engine.StenoEngine" = engine
@@ -29,21 +71,13 @@ class Main:
 
 		If the extension is enabled, this function is called when Plover starts.
 		"""
-		pass
+		print("==start?")
+		start()
 
 	def stop(self)->None:
-		raise NotImplementedError
-
-import sys, time, subprocess
-try:
-	#sys.path.append("/home/user202729/python-local-lib/")
-	import uinput
-	events = [(1, x-8) for x in range(8, 256)]
-	device = uinput.Device(events)
-except PermissionError:
-	print("elevate self")
-	sys.exit(subprocess.run(["sudo"] + sys.argv).returncode)
-
+		#send_message(process, b"")
+		#process.wait()
+		print("stop?")
 
 # https://www.kernel.org/doc/html/v4.12/input/uinput.html
 #
@@ -66,11 +100,11 @@ assert uinput.KEY_1 == (1, 2)
 def uinput_keycode_to_event(uinput_keycode: int):
 	return (1, uinput_keycode)
 
-device.emit(uinput.KEY_E, 1) # Press.
-print("Pressed")
-time.sleep(2)
-device.emit(uinput.KEY_E, 0) # Release.
-print("Released")
+#device.emit(uinput.KEY_E, 1) # Press.
+#print("Pressed")
+#time.sleep(2)
+#device.emit(uinput.KEY_E, 0) # Release.
+#print("Released")
 
 
 class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])):
@@ -91,10 +125,15 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def cancel(self):
 		pass
 
+	def set_time_between_key_presses(self, ms):
+		print('???', ms)
+		pass
+
 	def send_backspaces(self, number_of_backspaces):
 		for _ in number_of_backspaces:
-			device.emit(uinput.KEY_BACKSPACE, 1)
-			device.emit(uinput.KEY_BACKSPACE, 0)
+			global process
+			send_json(process, (uinput.KEY_BACKSPACE, 1))
+			send_json(process, (uinput.KEY_BACKSPACE, 0))
 
 	def send_string(self, s):
 		for char in s:
@@ -107,13 +146,14 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 			self._send_key(key_name, 1)
 			self._send_key(key_name, 0)
 
-	def _send_key(key_name, pressed: int):
+	def _send_key(self, key_name, pressed: int):
+		global process
 		uinput_keycode = key_name_to_uinput_keycode(key_name)
 		if uinput_keycode is None:
 			log.warning("Key %s not supported", key_name)
 		else:
 			event = uinput_keycode_to_event(uinput_keycode)
-			device.emit(event, 1 if pressed else 0)
+			send_json(process, (event, 1 if pressed else 0))
 
 
 	def send_key_combination(self, combo_string):
