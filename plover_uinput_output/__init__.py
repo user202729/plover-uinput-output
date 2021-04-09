@@ -37,7 +37,7 @@ def send_json(process, data: Any)->None:
 
 process=None
 
-def start():
+def start()->None:
 	global process
 	assert not process
 
@@ -87,25 +87,53 @@ class Main:
 
 #time.sleep(2)
 
-key_name_to_uinput_keycode_lookup = {
-		a.lower()[len("key_"):]: getattr(uinput, a)[1]
+key_name_to_uinput_keycode_lookup_list = [
+		(a.lower()[len("key_"):], getattr(uinput, a)[1])
 		for a in dir(uinput) if a.startswith("KEY_")
-		}
+		]
+key_name_to_uinput_keycode_lookup=dict(key_name_to_uinput_keycode_lookup_list)
+assert len(key_name_to_uinput_keycode_lookup)==len(key_name_to_uinput_keycode_lookup_list)
+
+
+symbol_to_keycode=dict(zip(r"-=[]\;',./`" + "\t\n",
+	[key_name_to_uinput_keycode_lookup[name] for name in
+		"minus equal leftbrace rightbrace backslash semicolon apostrophe comma dot slash grave tab enter".split()
+		]))
+
+unshift_symbol_to_keycode=dict(zip(r'!@#$%^&*()_+{}|:"<>?~',
+	[symbol_to_keycode.get(symbol) or key_name_to_uinput_keycode_lookup[symbol]
+		for symbol in r"1234567890-=[]\;',./`"]
+	))
+
+for c in map(chr, range(ord('a'), ord('z')+1)):
+	symbol_to_keycode[c]=unshift_symbol_to_keycode[c.upper()]=key_name_to_uinput_keycode_lookup[c]
+
+
+from .set_xkb_alias import set_xkb_alias
+set_xkb_alias(key_name_to_uinput_keycode_lookup)
+
+for mod in "alt control shift super".split():
+	key_name_to_uinput_keycode_lookup[mod] = key_name_to_uinput_keycode_lookup[mod+"_l"]
 
 def key_name_to_uinput_keycode(key_name: str)->Optional[int]:
 	return key_name_to_uinput_keycode_lookup[key_name]
 
 assert uinput.KEY_A == (1, 30)
 assert uinput.KEY_1 == (1, 2)
-def uinput_keycode_to_event(uinput_keycode: int):
+def uinput_keycode_to_event(uinput_keycode: int)->Tuple[int, int]:
 	return (1, uinput_keycode)
 
-#device.emit(uinput.KEY_E, 1) # Press.
-#print("Pressed")
-#time.sleep(2)
-#device.emit(uinput.KEY_E, 0) # Release.
-#print("Released")
 
+#exclam 1 1
+#at 2 1
+#numbersign 3 1
+#dollar 4 1
+#percent 5 1
+#asciicircum 6 1
+#ampersand 7 1
+#asterisk 8 1
+#parenleft 9 1
+#greater 102nd 1
 
 class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])):
 	"""Emulate keyboard events."""
@@ -125,38 +153,54 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def cancel(self):
 		pass
 
-	def set_time_between_key_presses(self, ms):
+	def set_time_between_key_presses(self, ms: int):
 		print('???', ms)
 		pass
 
-	def send_backspaces(self, number_of_backspaces):
-		for _ in number_of_backspaces:
+	def send_backspaces(self, number_of_backspaces: int):
+		for _ in range(number_of_backspaces):
 			global process
 			send_json(process, (uinput.KEY_BACKSPACE, 1))
 			send_json(process, (uinput.KEY_BACKSPACE, 0))
 
-	def send_string(self, s):
+	def send_string(self, s: str):
 		for char in s:
-			try:
-				key_name = CHAR_TO_KEYNAME[char]
-			except KeyError:
-				log.warning("Char %s not supported", char)
-				continue
+			if char in unshift_symbol_to_keycode:
+				keycode=unshift_symbol_to_keycode[char]
+				self._send_key("leftshift", 1)
+				self._send_keycode(keycode, 1)
+				self._send_keycode(keycode, 0)
+				self._send_key("leftshift", 0)
 
-			self._send_key(key_name, 1)
-			self._send_key(key_name, 0)
+			elif char in symbol_to_keycode:
+				keycode=symbol_to_keycode[char]
+				self._send_keycode(keycode, 1)
+				self._send_keycode(keycode, 0)
 
-	def _send_key(self, key_name, pressed: int):
+			else:
+				key_name=CHAR_TO_KEYNAME.get(char)
+				if key_name is None:
+					log.warning("Char %s not supported", char)
+					continue
+
+				self._send_key(key_name, 1)
+				self._send_key(key_name, 0)
+
+	def _send_keycode(self, uinput_keycode: int, pressed: int)->None:
+		event = uinput_keycode_to_event(uinput_keycode)
+		send_json(process, (event, 1 if pressed else 0))
+
+	def _send_key(self, key_name: str, pressed: int)->None:
 		global process
 		uinput_keycode = key_name_to_uinput_keycode(key_name)
+		print(key_name, uinput_keycode)
 		if uinput_keycode is None:
 			log.warning("Key %s not supported", key_name)
 		else:
-			event = uinput_keycode_to_event(uinput_keycode)
-			send_json(process, (event, 1 if pressed else 0))
+			self._send_keycode(uinput_keycode, pressed)
 
 
-	def send_key_combination(self, combo_string):
+	def send_key_combination(self, combo_string: str)->None:
 		key_events = self._key_combo.parse(combo_string)
 		for key_name, pressed in key_events:
 			self._send_key(key_name, pressed)
