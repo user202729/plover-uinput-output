@@ -29,13 +29,11 @@ try:
 	events = [(1, x-8) for x in range(8, 256)]
 	device = uinput.Device(events)
 except PermissionError:
-	print("weird")
 	raise
 
 while True:
 	data=read_message()
 	if not data: break
-	print("get instruction", data)
 	try:
 		device.emit(*json.loads(data))
 	except:
