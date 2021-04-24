@@ -171,7 +171,7 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 		self._time_between_key_presses=None
 
 	def start(self):
-		pass
+		start()
 
 	def cancel(self):
 		pass
