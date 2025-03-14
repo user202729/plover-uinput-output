@@ -168,7 +168,7 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def __init__(self, params=None):
 		if have_output_plugin:
 			KeyboardEmulationBase.__init__(self, params)
-		self._time_between_key_presses=None
+		self._key_press_delay_ms=None
 
 	def start(self):
 		start()
@@ -176,10 +176,12 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def cancel(self):
 		pass
 
-	def set_time_between_key_presses(self, ms: int):
-		if self._time_between_key_presses!=ms:
-			self._time_between_key_presses=ms
+    def set_key_press_delay(self, delay_ms):
+		if self._key_press_delay_ms!=delay_ms:
+			self._key_press_delay_ms=delay_ms
 			log.warning(f'Setting delay between key presses not supported')
+
+	set_time_between_key_presses = set_key_press_delay
 
 	def _send_keycode(self, uinput_keycode: int, pressed: int)->None:
 		event = uinput_keycode_to_event(uinput_keycode)
