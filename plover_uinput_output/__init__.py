@@ -9,7 +9,13 @@ from pathlib import Path
 
 import uinput
 
-from plover.oslayer.keyboardcontrol import KeyboardEmulation as OldKeyboardEmulation
+try:
+    from plover.oslayer.keyboardcontrol_x11 import KeyboardEmulation as OldKeyboardEmulation
+except ImportError:
+	try:
+		from plover.oslayer.keyboardcontrol_x11 import KeyboardEmulation as OldKeyboardEmulation
+	except ImportError:
+		from plover.oslayer.keyboardcontrol import KeyboardEmulation as OldKeyboardEmulation
 from plover import log
 from plover.oslayer.config import CONFIG_DIR
 from plover.key_combo import CHAR_TO_KEYNAME
@@ -87,7 +93,8 @@ class Main:
 			log.warning("Output plugin not properly supported!")
 			assert self._old_keyboard_emulation is None
 			self._old_keyboard_emulation = self._engine._keyboard_emulation
-			assert isinstance(self._old_keyboard_emulation, OldKeyboardEmulation)
+			assert isinstance(self._old_keyboard_emulation, OldKeyboardEmulation
+					 ), (self._old_keyboard_emulation, OldKeyboardEmulation)
 			self._engine._keyboard_emulation = KeyboardEmulation()
 
 	def stop(self)->None:
@@ -176,7 +183,7 @@ class KeyboardEmulation(*([KeyboardEmulationBase] if have_output_plugin else [])
 	def cancel(self):
 		pass
 
-    def set_key_press_delay(self, delay_ms):
+	def set_key_press_delay(self, delay_ms):
 		if self._key_press_delay_ms!=delay_ms:
 			self._key_press_delay_ms=delay_ms
 			log.warning(f'Setting delay between key presses not supported')

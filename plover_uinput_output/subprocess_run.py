@@ -31,10 +31,18 @@ try:
 except PermissionError:
 	raise
 
+first_time = True
+
 while True:
 	data=read_message()
 	if not data: break
 	try:
+		if first_time:
+			if sys.platform.startswith('linux'):
+				subprocess.run(
+						r"xinput reattach $(xinput|grep python-uinput|sed -E 's/.*\tid=([0-9]+).*/\1/g') $(xinput|grep 'Virtual core keyboard'|sed -E 's/.*\tid=([0-9]+).*/\1/g')",
+						shell=True)
+			first_time = False
 		device.emit(*json.loads(data))
 	except:
 		import traceback
